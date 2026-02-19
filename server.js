@@ -69,12 +69,25 @@ async function iniciarBot() {
       try { console.log(execSync('ls /usr/bin/*chrome* 2>/dev/null || echo "nenhum"').toString()); } catch(e){}
     }
 
+    console.log('[BOT] Iniciando Aviator Monitor com Stealth...');
+
     browser = await puppeteer.launch({
       headless: 'new',
-      executablePath: chromePath,
-      args: ['--no-sandbox','--disable-setuid-sandbox','--disable-dev-shm-usage','--disable-gpu','--window-size=1280,800','--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'],
-      ignoreHTTPSErrors: true
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,  // usa o que a imagem oficial já tem
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--window-size=1280,800',
+        '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'
+      ],
+      ignoreHTTPSErrors: true,
+      dumpio: true,
+      pipe: true
     });
+
+    console.log('[BOT] ✅ Chromium da imagem oficial carregado com sucesso!');
 
     page = await browser.newPage();
     console.log(`[BOT] Abrindo: ${URL_AVIATOR}`);
@@ -148,3 +161,4 @@ app.listen(port, () => {
 });
 
 process.on('SIGTERM', async () => { if (browser) await browser.close(); process.exit(0); });
+
