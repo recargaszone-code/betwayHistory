@@ -1,6 +1,6 @@
 // ========================================================
-// Aviator Betway - ATUALIZADO COM 10 SEGUNDOS DE ESPERA APÓS CARREGAMENTO
-// Preenche #header-username e #header-password + clique #login-btn
+// Aviator Betway - FINAL COM DOIS FORMULÁRIOS + DELAY DE 10S ENTRE ETAPAS
+// Preenche header → clica → espera modal → preenche modal → clica submit
 // ========================================================
 
 const puppeteer = require('puppeteer-extra');
@@ -46,6 +46,11 @@ async function enviarScreenshot(caption) {
   } catch (e) {}
 }
 
+async function delay(segundos = 10) {
+  console.log(`[DELAY] Aguardando ${segundos} segundos...`);
+  await new Promise(r => setTimeout(r, segundos * 1000));
+}
+
 // INÍCIO DO BOT
 async function iniciarBot() {
   try {
@@ -72,35 +77,48 @@ async function iniciarBot() {
     console.log('[BOT] Carregando página...');
     await page.goto(URL_AVIATOR, { waitUntil: 'domcontentloaded', timeout: 300000 });
     await enviarScreenshot('📸 Página inicial carregada');
+    await delay(10);
 
-    console.log('[BOT] Aguardando 10 segundos extras para estabilizar...');
-    await new Promise(r => setTimeout(r, 10000));
-    await enviarScreenshot('📸 Após 10 segundos de espera');
-
-    // LOGIN
-    console.log('[LOGIN] Preenchendo formulário...');
-
-    // Telefone: #header-username
+    // PRIMEIRO FORMULÁRIO (HEADER)
+    console.log('[LOGIN 1] Preenchendo header...');
     await page.waitForSelector('#header-username', { timeout: 120000, visible: true });
     await page.type('#header-username', TELEFONE);
-    await enviarScreenshot('📸 Telefone preenchido (#header-username)');
+    await enviarScreenshot('📸 Telefone preenchido (header-username)');
+    await delay(10);
 
-    // Senha: #header-password
     await page.waitForSelector('#header-password', { timeout: 120000, visible: true });
     await page.type('#header-password', SENHA);
-    await enviarScreenshot('📸 Senha preenchida (#header-password)');
+    await enviarScreenshot('📸 Senha preenchida (header-password)');
+    await delay(10);
 
-    // Botão Entrar: #login-btn
     await page.waitForSelector('#login-btn', { timeout: 60000, visible: true });
     await page.click('#login-btn');
-    await enviarScreenshot('📸 Botão Entrar clicado (#login-btn)');
+    await enviarScreenshot('📸 Botão header clicado (#login-btn)');
+    await delay(10);
+
+    // SEGUNDO FORMULÁRIO (MODAL POP-UP)
+    console.log('[LOGIN 2] Esperando modal abrir...');
+    await page.waitForSelector('#login-mobile', { timeout: 120000, visible: true });
+    await page.type('#login-mobile', TELEFONE);
+    await enviarScreenshot('📸 Telefone preenchido no modal (#login-mobile)');
+    await delay(10);
+
+    await page.waitForSelector('#login-password', { timeout: 120000, visible: true });
+    await page.type('#login-password', SENHA);
+    await enviarScreenshot('📸 Senha preenchida no modal (#login-password)');
+    await delay(10);
+
+    await page.waitForSelector('button[type="submit"]', { timeout: 60000, visible: true });
+    await page.click('button[type="submit"]');
+    await enviarScreenshot('📸 Botão modal clicado (submit)');
+    await delay(10);
 
     // Espera histórico aparecer
-    console.log('[LOGIN] Esperando histórico carregar...');
+    console.log('[LOGIN FINAL] Esperando jogo/histórico...');
     await page.waitForSelector('.payouts-block .payout.ng-star-inserted', { timeout: 180000 });
-    await enviarScreenshot('📸 Pós-login - Histórico visível!');
+    await enviarScreenshot('📸 Pós-login completo - Histórico visível!');
 
-    enviarTelegram('🤖 Logado na Betway com sucesso! Monitorando 🔥');
+    enviarTelegram('🤖 Logado na Betway com sucesso! Monitorando histórico 🔥');
 
     // LOOP PRINCIPAL
     setInterval(async () => {
