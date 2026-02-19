@@ -1,6 +1,5 @@
 // ========================================================
-// Aviator Betway - RAILWAY 24/7 (ARRAY ROLANTE + API ENDPOINT)
-// Seletores atualizados 2026 - header-username, header-password, login-btn
+// Aviator Betway - FINAL 2026 (SEM IFRAME, SELETOR DIRETO NO HTML)
 // ========================================================
 
 const puppeteer = require('puppeteer-extra');
@@ -26,7 +25,7 @@ const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: false });
 let browser;
 let page;
 let historicoAntigo = new Set();
-let historicoAtual = [];        // ARRAY ROLANTE
+let historicoAtual = [];
 const MAX_HISTORICO = 20;
 
 let multiplicadores = [];
@@ -35,38 +34,22 @@ let multiplicadores = [];
 async function enviarTelegram(mensagem) {
   try {
     await bot.sendMessage(CHAT_ID, mensagem, { parse_mode: 'HTML' });
-    console.log('[TELEGRAM] Enviado');
-  } catch (err) {
-    console.error('[TELEGRAM ERRO]', err.message);
-  }
+    console.log('[TELEGRAM]', mensagem);
+  } catch (err) {}
 }
 
-async function enviarScreenshot(caption = '📸 Screenshot') {
+async function enviarScreenshot(caption) {
   try {
-    const screenshot = await page.screenshot({ encoding: 'base64' });
+    const screenshot = await page.screenshot({ encoding: 'base64', fullPage: true });
     await bot.sendPhoto(CHAT_ID, Buffer.from(screenshot, 'base64'), { caption });
-    console.log('[DEBUG] Screenshot enviado');
-  } catch (e) {
-    console.error('[SCREENSHOT ERRO]', e.message);
-  }
-}
-
-async function getIframeFrame() {
-  try {
-    const iframeElement = await page.waitForSelector('iframe', { timeout: 30000 });
-    const frame = await iframeElement.contentFrame();
-    console.log('[IFRAME] Re-pego!');
-    return frame;
-  } catch (err) {
-    console.error('[IFRAME ERRO]', err.message);
-    return null;
-  }
+    console.log('[SCREENSHOT] Enviado:', caption);
+  } catch (e) {}
 }
 
 // INÍCIO DO BOT
 async function iniciarBot() {
   try {
-    console.log('[BOT] Iniciando Aviator Monitor Betway...');
+    console.log('[BOT] Iniciando Betway Aviator...');
 
     browser = await puppeteer.launch({
       headless: 'new',
@@ -75,9 +58,10 @@ async function iniciarBot() {
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
-        '--disable-gpu',
+        '--disable-gpu', // tenta sem GPU primeiro
         '--no-zygote',
         '--single-process',
+        '--disable-web-security',
         '--window-size=1024,768',
         '--user-agent=Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1'
       ],
@@ -88,57 +72,47 @@ async function iniciarBot() {
 
     console.log('[BOT] Abrindo URL...');
     await page.goto(URL_AVIATOR, { waitUntil: 'domcontentloaded', timeout: 300000 });
-    await enviarScreenshot('📸 Página inicial carregada');
+    await enviarScreenshot('📸 Página inicial');
 
-    // LOGIN COM RETRY - SELETORES ATUALIZADOS
+    // LOGIN
     console.log('[LOGIN] Iniciando...');
     let tentativas = 0;
-    const maxTentativas = 2;
-
-    while (tentativas < maxTentativas) {
+    while (tentativas < 3) {
       try {
-        // Telefone: #header-username
-        await page.waitForSelector('input#header-username', { timeout: 180000, visible: true });
-        await page.type('input#header-username', TELEFONE);
-        console.log('[LOGIN] Telefone digitado');
+        await page.waitForSelector('#header-username', { timeout: 120000, visible: true });
+        await page.type('#header-username', TELEFONE);
+        await enviarScreenshot('📸 Telefone digitado');
 
-        // Senha: #header-password
-        await page.waitForSelector('input#header-password', { timeout: 120000, visible: true });
-        await page.type('input#header-password', SENHA);
-        console.log('[LOGIN] Senha digitada');
+        await page.waitForSelector('#header-password', { timeout: 120000, visible: true });
+        await page.type('#header-password', SENHA);
+        await enviarScreenshot('📸 Senha digitada');
 
-        // Botão Entrar: #login-btn
-        await page.waitForSelector('button#login-btn', { timeout: 120000, visible: true });
-        await page.click('button#login-btn');
-        console.log('[LOGIN] Botão Entrar clicado');
+        await page.waitForSelector('#login-btn', { timeout: 60000, visible: true });
+        await page.click('#login-btn');
+        await enviarScreenshot('📸 Botão Entrar clicado');
 
-        // Espera jogo/iframe carregar
-        await page.waitForSelector('iframe, div[class*="game"], div[id*="game"]', { timeout: 180000 });
-        console.log('[LOGIN] Jogo carregando...');
+        // Espera o histórico aparecer (elemento com 'x' ou classe payouts-block)
+        await page.waitForSelector('.payouts-block .payout', { timeout: 180000 });
+        await enviarScreenshot('📸 Histórico detectado!');
 
-        await new Promise(r => setTimeout(r, 15000));
-
-        const frame = await getIframeFrame();
-        if (!frame) throw new Error('Iframe não encontrado');
-
-        enviarTelegram('🤖 Bot logado na Betway e monitorando histórico REAL! 🔥');
+        enviarTelegram('🤖 Logado na Betway! Monitorando agora 🔥');
         break;
       } catch (e) {
         tentativas++;
-        console.error(`[LOGIN] Tentativa ${tentativas} falhou:`, e.message);
-        await enviarScreenshot(`❌ Falha login (tentativa ${tentativas})`);
-        if (tentativas >= maxTentativas) throw e;
-        await new Promise(r => setTimeout(r, 10000));
+        console.error(`[LOGIN] Falha ${tentativas}:`, e.message);
+        await enviarScreenshot(`❌ Falha tentativa ${tentativas}`);
+        await new Promise(r => setTimeout(r, 15000));
       }
     }
 
-    // LOOP PRINCIPAL - ARRAY ROLANTE
+    if (tentativas >= 3) throw new Error('Login falhou após 3 tentativas');
+
+    // LOOP PRINCIPAL - SELETOR DIRETO
     setInterval(async () => {
       try {
-        const frame = await getIframeFrame();
-        if (!frame) return;
+        console.log('[LOOP] Capturando payouts...');
 
-        const payouts = await frame.$$eval(
+        const payouts = await page.$$eval(
           '.payouts-block .payout.ng-star-inserted',
           els => els.map(el => el.innerText.trim()).filter(t => t && t.endsWith('x'))
         );
@@ -159,22 +133,27 @@ async function iniciarBot() {
             if (historicoAtual.length > MAX_HISTORICO) historicoAtual.pop();
 
             atualizou = true;
+            console.log(`[NOVO] ${valor.toFixed(2)}x`);
           }
         });
 
         if (atualizou) {
           fs.writeFileSync('historico.json', JSON.stringify(multiplicadores, null, 2));
-          console.log(`[ARRAY] Atualizado → ${historicoAtual.length} itens`);
+          console.log(`[ARRAY] Atualizado: ${historicoAtual.length}`);
+          enviarTelegram(`Atualizado! Últimos: ${historicoAtual.slice(0,5).join(', ')}`);
         }
 
+        // Screenshot periódico pra debug
+        if (Math.random() < 0.2) await enviarScreenshot('📸 Debug periódico');
+
       } catch (err) {
-        console.error('[ERRO no loop]', err.message);
+        console.error('[LOOP ERRO]', err.message);
       }
     }, 8000);
 
   } catch (err) {
-    console.error('[ERRO FATAL]', err.message);
-    await enviarScreenshot('💥 ERRO FATAL');
+    console.error('[FATAL]', err.message);
+    await enviarScreenshot('💥 ERRO FINAL');
     if (browser) await browser.close();
     process.exit(1);
   }
@@ -182,22 +161,16 @@ async function iniciarBot() {
 
 // ENDPOINTS
 app.get('/health', (req, res) => res.status(200).send('✅ ONLINE'));
-
-app.get('/historico', (req, res) => {
-  res.json({ historicoAtual });
-});
-
-app.get('/', (req, res) => {
-  res.send(`<h1>Betway Aviator Monitor</h1><p>Histórico atual: <code>${JSON.stringify(historicoAtual)}</code></p>`);
-});
+app.get('/historico', (req, res) => res.json({ historicoAtual }));
+app.get('/', (req, res) => res.send(`<h1>Betway Monitor</h1><p>Atual: ${JSON.stringify(historicoAtual)}</p>`));
 
 app.listen(port, () => {
-  console.log(`🚀 Servidor rodando na porta ${port}`);
+  console.log(`🚀 Rodando porta ${port}`);
   setTimeout(() => iniciarBot().catch(console.error), 10000);
 });
 
 process.on('SIGTERM', async () => {
-  console.log('🛑 Fechando...');
+  console.log('🛑 Fechando');
   if (browser) await browser.close();
   process.exit(0);
 });
