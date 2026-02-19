@@ -65,10 +65,10 @@ async function iniciarBot() {
   try {
     console.log('[BOT] Iniciando Aviator Monitor com Stealth...');
 
-    browser = await puppeteer.launch({
-      headless: 'new',
-      executablePath: '/usr/bin/chromium-browser',
-      args: [
+browser = await puppeteer.launch({
+  headless: 'new',
+  executablePath: '/usr/bin/chromium',   // ← pronto
+  args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
@@ -203,3 +203,4 @@ process.on('SIGTERM', async () => {
   if (browser) await browser.close();
   process.exit(0);
 });
+
