@@ -1,5 +1,6 @@
 // ========================================================
-// Aviator 888bet - RAILWAY 24/7 (ARRAY ROLANTE NO TELEGRAM + API ENDPOINT)
+// Aviator Betway - RAILWAY 24/7 (ARRAY ROLANTE + API ENDPOINT)
+// Seletores atualizados 2026 - header-username, header-password, login-btn
 // ========================================================
 
 const puppeteer = require('puppeteer-extra');
@@ -25,8 +26,8 @@ const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: false });
 let browser;
 let page;
 let historicoAntigo = new Set();
-let historicoAtual = [];        // ← ARRAY QUE VOCÊ PEDIU
-const MAX_HISTORICO = 20;       // últimos 20 multiplicadores (pode mudar)
+let historicoAtual = [];        // ARRAY ROLANTE
+const MAX_HISTORICO = 20;
 
 let multiplicadores = [];
 
@@ -44,7 +45,10 @@ async function enviarScreenshot(caption = '📸 Screenshot') {
   try {
     const screenshot = await page.screenshot({ encoding: 'base64' });
     await bot.sendPhoto(CHAT_ID, Buffer.from(screenshot, 'base64'), { caption });
-  } catch (e) {}
+    console.log('[DEBUG] Screenshot enviado');
+  } catch (e) {
+    console.error('[SCREENSHOT ERRO]', e.message);
+  }
 }
 
 async function getIframeFrame() {
@@ -62,40 +66,56 @@ async function getIframeFrame() {
 // INÍCIO DO BOT
 async function iniciarBot() {
   try {
-    console.log('[BOT] Iniciando Aviator Monitor...');
+    console.log('[BOT] Iniciando Aviator Monitor Betway...');
 
     browser = await puppeteer.launch({
       headless: 'new',
+      ignoreHTTPSErrors: true,
       args: [
-        '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
-        '--disable-gpu', '--no-zygote', '--single-process', '--window-size=1024,768',
-        '--user-agent=Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36'
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--no-zygote',
+        '--single-process',
+        '--window-size=1024,768',
+        '--user-agent=Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1'
       ],
     });
 
     page = await browser.newPage();
     await page.setViewport({ width: 1024, height: 768 });
 
-    await page.goto(URL_AVIATOR, { waitUntil: 'networkidle0', timeout: 180000 });
+    console.log('[BOT] Abrindo URL...');
+    await page.goto(URL_AVIATOR, { waitUntil: 'domcontentloaded', timeout: 300000 });
     await enviarScreenshot('📸 Página inicial carregada');
 
-    // LOGIN COM RETRY
+    // LOGIN COM RETRY - SELETORES ATUALIZADOS
     console.log('[LOGIN] Iniciando...');
     let tentativas = 0;
     const maxTentativas = 2;
 
     while (tentativas < maxTentativas) {
       try {
-        await page.waitForSelector('input#phone', { timeout: 180000, visible: true });
+        // Telefone: #header-username
+        await page.waitForSelector('input#header-username', { timeout: 180000, visible: true });
         await page.type('input#header-username', TELEFONE);
+        console.log('[LOGIN] Telefone digitado');
 
-        await page.waitForSelector('input#password', { timeout: 120000, visible: true });
+        // Senha: #header-password
+        await page.waitForSelector('input#header-password', { timeout: 120000, visible: true });
         await page.type('input#header-password', SENHA);
+        console.log('[LOGIN] Senha digitada');
 
-        await page.waitForSelector('button.login-btn', { timeout: 120000, visible: true });
+        // Botão Entrar: #login-btn
+        await page.waitForSelector('button#login-btn', { timeout: 120000, visible: true });
         await page.click('button#login-btn');
+        console.log('[LOGIN] Botão Entrar clicado');
 
-        await page.waitForSelector('iframe', { timeout: 180000 });
+        // Espera jogo/iframe carregar
+        await page.waitForSelector('iframe, div[class*="game"], div[id*="game"]', { timeout: 180000 });
+        console.log('[LOGIN] Jogo carregando...');
+
         await new Promise(r => setTimeout(r, 15000));
 
         const frame = await getIframeFrame();
@@ -105,6 +125,7 @@ async function iniciarBot() {
         break;
       } catch (e) {
         tentativas++;
+        console.error(`[LOGIN] Tentativa ${tentativas} falhou:`, e.message);
         await enviarScreenshot(`❌ Falha login (tentativa ${tentativas})`);
         if (tentativas >= maxTentativas) throw e;
         await new Promise(r => setTimeout(r, 10000));
@@ -134,17 +155,13 @@ async function iniciarBot() {
             historicoAntigo.add(key);
             multiplicadores.push({ timestamp: new Date().toISOString().slice(0,19), valor });
 
-            // ATUALIZA O ARRAY ROLANTE
-            historicoAtual.unshift(valor.toFixed(2));   // novo no começo
-            if (historicoAtual.length > MAX_HISTORICO) {
-              historicoAtual.pop();                     // remove o mais antigo
-            }
+            historicoAtual.unshift(valor.toFixed(2));
+            if (historicoAtual.length > MAX_HISTORICO) historicoAtual.pop();
 
             atualizou = true;
           }
         });
 
-        // NÃO MANDA PRO TELEGRAM, SÓ SALVA PRO ENDPOINT
         if (atualizou) {
           fs.writeFileSync('historico.json', JSON.stringify(multiplicadores, null, 2));
           console.log(`[ARRAY] Atualizado → ${historicoAtual.length} itens`);
@@ -163,15 +180,15 @@ async function iniciarBot() {
   }
 }
 
-// HEALTH CHECK + ENDPOINT HISTÓRICO
+// ENDPOINTS
 app.get('/health', (req, res) => res.status(200).send('✅ ONLINE'));
 
 app.get('/historico', (req, res) => {
-  res.json({ historicoAtual });  // ← RETORNA O ARRAY COMO JSON
+  res.json({ historicoAtual });
 });
 
 app.get('/', (req, res) => {
-  res.send(`<h1>888bet Array Monitor</h1><p>Histórico atual: <code>${JSON.stringify(historicoAtual)}</code></p>`);
+  res.send(`<h1>Betway Aviator Monitor</h1><p>Histórico atual: <code>${JSON.stringify(historicoAtual)}</code></p>`);
 });
 
 app.listen(port, () => {
