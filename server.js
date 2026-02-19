@@ -1,6 +1,6 @@
 // ========================================================
-// Aviator Betway - FINAL COM DOIS FORMULÁRIOS + DELAY DE 10S ENTRE ETAPAS
-// Preenche header → clica → espera modal → preenche modal → clica submit
+// Aviator Betway - FINAL COM DOIS FORMULÁRIOS + DELAY 10S + CLIQUE MODAL SUBMIT
+// Preenche header → clica → espera modal → preenche modal → clica submit do modal
 // ========================================================
 
 const puppeteer = require('puppeteer-extra');
@@ -47,7 +47,7 @@ async function enviarScreenshot(caption) {
 }
 
 async function delay(segundos = 10) {
-  console.log(`[DELAY] Aguardando ${segundos} segundos...`);
+  console.log(`[DELAY] Esperando ${segundos}s...`);
   await new Promise(r => setTimeout(r, segundos * 1000));
 }
 
@@ -80,47 +80,52 @@ async function iniciarBot() {
     await delay(10);
 
     // PRIMEIRO FORMULÁRIO (HEADER)
-    console.log('[LOGIN 1] Preenchendo header...');
+    console.log('[LOGIN HEADER] Preenchendo...');
     await page.waitForSelector('#header-username', { timeout: 120000, visible: true });
     await page.type('#header-username', TELEFONE);
-    await enviarScreenshot('📸 Telefone preenchido (header-username)');
+    await enviarScreenshot('📸 Telefone preenchido header');
     await delay(10);
 
     await page.waitForSelector('#header-password', { timeout: 120000, visible: true });
     await page.type('#header-password', SENHA);
-    await enviarScreenshot('📸 Senha preenchida (header-password)');
+    await enviarScreenshot('📸 Senha preenchida header');
     await delay(10);
 
     await page.waitForSelector('#login-btn', { timeout: 60000, visible: true });
     await page.click('#login-btn');
-    await enviarScreenshot('📸 Botão header clicado (#login-btn)');
+    await enviarScreenshot('📸 Botão header clicado');
     await delay(10);
 
-    // SEGUNDO FORMULÁRIO (MODAL POP-UP)
-    console.log('[LOGIN 2] Esperando modal abrir...');
+    // SEGUNDO FORMULÁRIO (MODAL)
+    console.log('[LOGIN MODAL] Esperando modal...');
     await page.waitForSelector('#login-mobile', { timeout: 120000, visible: true });
     await page.type('#login-mobile', TELEFONE);
-    await enviarScreenshot('📸 Telefone preenchido no modal (#login-mobile)');
+    await enviarScreenshot('📸 Telefone preenchido modal');
     await delay(10);
 
     await page.waitForSelector('#login-password', { timeout: 120000, visible: true });
     await page.type('#login-password', SENHA);
-    await enviarScreenshot('📸 Senha preenchida no modal (#login-password)');
+    await enviarScreenshot('📸 Senha preenchida modal');
     await delay(10);
 
+    // CLIQUE NO BOTÃO SUBMIT DO MODAL
+    console.log('[LOGIN MODAL] Clicando Entrar do modal...');
     await page.waitForSelector('button[type="submit"]', { timeout: 60000, visible: true });
-    await page.click('button[type="submit"]');
-    await enviarScreenshot('📸 Botão modal clicado (submit)');
+    await page.evaluate(() => {
+      const btn = document.querySelector('button[type="submit"]');
+      if (btn) btn.click();
+    });
+    await enviarScreenshot('📸 Botão modal Entrar clicado (submit)');
     await delay(10);
 
-    // Espera histórico aparecer
-    console.log('[LOGIN FINAL] Esperando jogo/histórico...');
+    // Espera jogo/histórico
+    console.log('[FINAL] Esperando histórico...');
     await page.waitForSelector('.payouts-block .payout.ng-star-inserted', { timeout: 180000 });
-    await enviarScreenshot('📸 Pós-login completo - Histórico visível!');
+    await enviarScreenshot('📸 Pós-login - Histórico visível!');
 
-    enviarTelegram('🤖 Logado na Betway com sucesso! Monitorando histórico 🔥');
+    enviarTelegram('🤖 Logado na Betway! Monitorando 🔥');
 
-    // LOOP PRINCIPAL
+    // LOOP
     setInterval(async () => {
       try {
         const payouts = await page.$$eval(
@@ -148,9 +153,7 @@ async function iniciarBot() {
           enviarTelegram(`Novos multiplicadores! Últimos: ${historicoAtual.slice(0,5).join(', ')}`);
         }
 
-      } catch (err) {
-        console.error('[LOOP ERRO]', err.message);
-      }
+      } catch (err) {}
     }, 8000);
 
   } catch (err) {
