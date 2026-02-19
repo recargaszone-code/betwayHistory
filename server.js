@@ -1,5 +1,6 @@
 // ========================================================
-// Aviator Betway - TESTE CONTROLADO: DELAY 5S + MENSAGENS NO TELEGRAM ANTES DO CLIQUE FINAL
+// Aviator Betway - CORRIGIDO: CLIQUE NO BOTÃO DO MODAL POR CLASS + TEXTO
+// Evita erro de selector type="submit"
 // ========================================================
 
 const puppeteer = require('puppeteer-extra');
@@ -34,7 +35,6 @@ let multiplicadores = [];
 async function enviarTelegram(mensagem) {
   try {
     await bot.sendMessage(CHAT_ID, mensagem, { parse_mode: 'HTML' });
-    console.log('[TELEGRAM]', mensagem);
   } catch (err) {}
 }
 
@@ -78,7 +78,7 @@ async function iniciarBot() {
     await enviarScreenshot('📸 Página inicial carregada');
     await delay(10);
 
-    // PRIMEIRO FORMULÁRIO (HEADER) - assumindo que aparece primeiro
+    // HEADER LOGIN
     console.log('[LOGIN HEADER] Preenchendo...');
     await page.waitForSelector('#header-username', { timeout: 120000, visible: true });
     await page.type('#header-username', TELEFONE);
@@ -95,7 +95,7 @@ async function iniciarBot() {
     await enviarScreenshot('📸 Botão header clicado');
     await delay(10);
 
-    // SEGUNDO FORMULÁRIO (MODAL) - TESTE CONTROLADO AQUI
+    // MODAL
     console.log('[LOGIN MODAL] Esperando modal...');
     await page.waitForSelector('#login-mobile', { timeout: 120000, visible: true });
     await page.type('#login-mobile', TELEFONE);
@@ -107,18 +107,25 @@ async function iniciarBot() {
     await enviarScreenshot('📸 Senha preenchida modal');
     await delay(10);
 
-    // TESTE ESPECÍFICO QUE VOCÊ PEDIU
-    await enviarTelegram('O botão de login do modal foi clicado mn');
-    await delay(5);  // 5 segundos de espera após a mensagem
-    await enviarTelegram('Em 5 segundos clicaremos no botão login do modal');
-    await delay(5);  // mais 5 segundos antes do clique
-
-    // CLIQUE FINAL NO BOTÃO DO MODAL
+    // CLIQUE NO BOTÃO DO MODAL - POR TEXTO "Entrar"
     console.log('[LOGIN MODAL] Clicando botão Entrar do modal...');
-    await page.waitForSelector('button[type="submit"]', { timeout: 60000, visible: true });
-    await page.click('button[type="submit"]');
-    await enviarScreenshot('📸 Botão modal Entrar clicado (submit final)');
-    await delay(30); // espera longa pro jogo carregar após clique final
+    const entrarButton = await page.evaluateHandle(() => {
+      const buttons = document.querySelectorAll('button.p-button');
+      for (const btn of buttons) {
+        if (btn.innerText.includes('Entrar')) return btn;
+      }
+      return null;
+    });
+
+    if (entrarButton.asElement()) {
+      await entrarButton.click();
+      await enviarScreenshot('📸 Botão modal Entrar clicado (por texto)');
+    } else {
+      await enviarTelegram('⚠️ Botão "Entrar" do modal não encontrado! Verifique screenshot.');
+      await enviarScreenshot('❌ Botão modal não encontrado');
+      throw new Error('Botão modal não encontrado');
+    }
+    await delay(30); // Espera longa pro jogo carregar
 
     // Espera histórico
     console.log('[FINAL] Esperando histórico...');
