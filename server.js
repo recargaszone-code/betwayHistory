@@ -1,6 +1,5 @@
 // ========================================================
-// Aviator Betway - CORRIGIDO: CLIQUE NO BOTÃO DO MODAL POR CLASS + TEXTO
-// Evita erro de selector type="submit"
+// Aviator Betway - FINAL: DELAY 10S APÓS CLIQUE MODAL + VERIFICA IFRAME + HISTÓRICO DIRETO
 // ========================================================
 
 const puppeteer = require('puppeteer-extra');
@@ -95,8 +94,8 @@ async function iniciarBot() {
     await enviarScreenshot('📸 Botão header clicado');
     await delay(10);
 
-    // MODAL
-    console.log('[LOGIN MODAL] Esperando modal...');
+    // MODAL LOGIN
+    console.log('[LOGIN MODAL] Preenchendo...');
     await page.waitForSelector('#login-mobile', { timeout: 120000, visible: true });
     await page.type('#login-mobile', TELEFONE);
     await enviarScreenshot('📸 Telefone preenchido modal');
@@ -107,37 +106,60 @@ async function iniciarBot() {
     await enviarScreenshot('📸 Senha preenchida modal');
     await delay(10);
 
-    // CLIQUE NO BOTÃO DO MODAL - POR TEXTO "Entrar"
+    // CLIQUE NO BOTÃO DO MODAL
     console.log('[LOGIN MODAL] Clicando botão Entrar do modal...');
     const entrarButton = await page.evaluateHandle(() => {
       const buttons = document.querySelectorAll('button.p-button');
       for (const btn of buttons) {
-        if (btn.innerText.includes('Entrar')) return btn;
+        if (btn.innerText.trim() === 'Entrar') return btn;
       }
       return null;
     });
 
     if (entrarButton.asElement()) {
       await entrarButton.click();
-      await enviarScreenshot('📸 Botão modal Entrar clicado (por texto)');
+      await enviarScreenshot('📸 Botão modal Entrar clicado');
     } else {
-      await enviarTelegram('⚠️ Botão "Entrar" do modal não encontrado! Verifique screenshot.');
+      await enviarTelegram('⚠️ Botão modal "Entrar" não encontrado!');
       await enviarScreenshot('❌ Botão modal não encontrado');
       throw new Error('Botão modal não encontrado');
     }
-    await delay(30); // Espera longa pro jogo carregar
 
-    // Espera histórico
+    // TESTE QUE VOCÊ PEDIU: DELAY 10S + VERIFICA IFRAME/HISTÓRICO
+    await delay(10);
+    await enviarTelegram('O botão de login do modal foi clicado mn');
+    await delay(5);
+    await enviarTelegram('Em 5 segundos verificaremos o IFRAME e o histórico');
+    await delay(5);
+    await enviarScreenshot('📸 Tela 10s após clique no modal (antes de verificar IFRAME)');
+
+    // VERIFICA IFRAME (se existir)
+    console.log('[VERIFICAÇÃO] Procurando IFRAME...');
+    let frame = null;
+    try {
+      const iframeElement = await page.waitForSelector('iframe', { timeout: 10000 });
+      if (iframeElement) {
+        frame = await iframeElement.contentFrame();
+        await enviarScreenshot('📸 IFRAME encontrado!');
+        console.log('[IFRAME] Encontrado - usando frame para busca');
+      }
+    } catch (e) {
+      console.log('[IFRAME] Não encontrado - buscando histórico no main page');
+      await enviarScreenshot('📸 Sem IFRAME - buscando direto no main');
+    }
+
+    // BUSCA HISTÓRICO (no frame ou main)
+    const target = frame || page;
     console.log('[FINAL] Esperando histórico...');
-    await page.waitForSelector('.payouts-block .payout.ng-star-inserted', { timeout: 60000 });
+    await target.waitForSelector('.payouts-block .payout.ng-star-inserted', { timeout: 60000 });
     await enviarScreenshot('📸 Pós-login - Histórico visível!');
 
     enviarTelegram('🤖 Logado na Betway! Monitorando histórico 🔥');
 
-    // LOOP PRINCIPAL
+    // LOOP PRINCIPAL (busca no target)
     setInterval(async () => {
       try {
-        const payouts = await page.$$eval(
+        const payouts = await target.$$eval(
           '.payouts-block .payout.ng-star-inserted',
           els => els.map(el => el.innerText.trim()).filter(t => t && t.endsWith('x'))
         );
