@@ -1,6 +1,5 @@
 // ========================================================
-// Aviator Betway - FINAL COM DELAY 20S APÓS CLIQUE NO MODAL + TIMEOUTS ALTOS
-// Resolve o erro após preencher senha (loading lento do jogo)
+// Aviator Betway - FINAL COM DELAY 30S APÓS CLIQUE NO MODAL (resolve loading lento)
 // ========================================================
 
 const puppeteer = require('puppeteer-extra');
@@ -113,14 +112,21 @@ async function iniciarBot() {
     await page.waitForSelector('button[type="submit"]', { timeout: 60000, visible: true });
     await page.click('button[type="submit"]');
     await enviarScreenshot('📸 Botão modal Entrar clicado');
-    await delay(20); // <--- DELAY EXTRA DE 20 SEGUNDOS APÓS CLIQUE NO MODAL (pra loading do jogo)
+    await delay(30); // DELAY DE 30 SEGUNDOS APÓS CLIQUE NO MODAL (loading do jogo Aviator)
 
-    // Espera histórico aparecer
+    // Espera histórico aparecer (timeout alto pra cobrir loading lento)
     console.log('[FINAL] Esperando histórico carregar...');
-    await page.waitForSelector('.payouts-block .payout.ng-star-inserted', { timeout: 60000 }); // timeout maior pra cobrir loading
-    await enviarScreenshot('📸 Pós-login - Histórico visível!');
-
-    enviarTelegram('🤖 Logado na Betway! Monitorando histórico 🔥');
+    try {
+      await page.waitForSelector('.payouts-block .payout.ng-star-inserted', { timeout: 60000 });
+      await enviarScreenshot('📸 Pós-login - Histórico visível!');
+      enviarTelegram('🤖 Logado na Betway! Monitorando histórico 🔥');
+    } catch (e) {
+      console.log('[WARNING] Histórico demorou demais - tentando mais 30s...');
+      await delay(30);
+      await page.waitForSelector('.payouts-block .payout', { timeout: 30000 });
+      await enviarScreenshot('📸 Histórico encontrado após delay extra!');
+      enviarTelegram('🤖 Logado após delay extra! Monitorando 🔥');
+    }
 
     // LOOP PRINCIPAL
     setInterval(async () => {
