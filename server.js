@@ -1,5 +1,5 @@
 // ========================================================
-// Aviator Betway - FINAL COM DELAY 30S APÓS CLIQUE NO MODAL (resolve loading lento)
+// Aviator Betway - TESTE CONTROLADO: DELAY 5S + MENSAGENS NO TELEGRAM ANTES DO CLIQUE FINAL
 // ========================================================
 
 const puppeteer = require('puppeteer-extra');
@@ -34,6 +34,7 @@ let multiplicadores = [];
 async function enviarTelegram(mensagem) {
   try {
     await bot.sendMessage(CHAT_ID, mensagem, { parse_mode: 'HTML' });
+    console.log('[TELEGRAM]', mensagem);
   } catch (err) {}
 }
 
@@ -73,12 +74,11 @@ async function iniciarBot() {
     page = await browser.newPage();
     await page.setViewport({ width: 1024, height: 768 });
 
-    console.log('[BOT] Carregando página...');
     await page.goto(URL_AVIATOR, { waitUntil: 'domcontentloaded', timeout: 300000 });
     await enviarScreenshot('📸 Página inicial carregada');
     await delay(10);
 
-    // PRIMEIRO FORMULÁRIO (HEADER)
+    // PRIMEIRO FORMULÁRIO (HEADER) - assumindo que aparece primeiro
     console.log('[LOGIN HEADER] Preenchendo...');
     await page.waitForSelector('#header-username', { timeout: 120000, visible: true });
     await page.type('#header-username', TELEFONE);
@@ -95,7 +95,7 @@ async function iniciarBot() {
     await enviarScreenshot('📸 Botão header clicado');
     await delay(10);
 
-    // SEGUNDO FORMULÁRIO (MODAL)
+    // SEGUNDO FORMULÁRIO (MODAL) - TESTE CONTROLADO AQUI
     console.log('[LOGIN MODAL] Esperando modal...');
     await page.waitForSelector('#login-mobile', { timeout: 120000, visible: true });
     await page.type('#login-mobile', TELEFONE);
@@ -107,26 +107,25 @@ async function iniciarBot() {
     await enviarScreenshot('📸 Senha preenchida modal');
     await delay(10);
 
-    // CLIQUE NO BOTÃO SUBMIT DO MODAL
-    console.log('[LOGIN MODAL] Clicando Entrar do modal...');
+    // TESTE ESPECÍFICO QUE VOCÊ PEDIU
+    await enviarTelegram('O botão de login do modal foi clicado mn');
+    await delay(5);  // 5 segundos de espera após a mensagem
+    await enviarTelegram('Em 5 segundos clicaremos no botão login do modal');
+    await delay(5);  // mais 5 segundos antes do clique
+
+    // CLIQUE FINAL NO BOTÃO DO MODAL
+    console.log('[LOGIN MODAL] Clicando botão Entrar do modal...');
     await page.waitForSelector('button[type="submit"]', { timeout: 60000, visible: true });
     await page.click('button[type="submit"]');
-    await enviarScreenshot('📸 Botão modal Entrar clicado');
-    await delay(30); // DELAY DE 30 SEGUNDOS APÓS CLIQUE NO MODAL (loading do jogo Aviator)
+    await enviarScreenshot('📸 Botão modal Entrar clicado (submit final)');
+    await delay(30); // espera longa pro jogo carregar após clique final
 
-    // Espera histórico aparecer (timeout alto pra cobrir loading lento)
-    console.log('[FINAL] Esperando histórico carregar...');
-    try {
-      await page.waitForSelector('.payouts-block .payout.ng-star-inserted', { timeout: 60000 });
-      await enviarScreenshot('📸 Pós-login - Histórico visível!');
-      enviarTelegram('🤖 Logado na Betway! Monitorando histórico 🔥');
-    } catch (e) {
-      console.log('[WARNING] Histórico demorou demais - tentando mais 30s...');
-      await delay(30);
-      await page.waitForSelector('.payouts-block .payout', { timeout: 30000 });
-      await enviarScreenshot('📸 Histórico encontrado após delay extra!');
-      enviarTelegram('🤖 Logado após delay extra! Monitorando 🔥');
-    }
+    // Espera histórico
+    console.log('[FINAL] Esperando histórico...');
+    await page.waitForSelector('.payouts-block .payout.ng-star-inserted', { timeout: 60000 });
+    await enviarScreenshot('📸 Pós-login - Histórico visível!');
+
+    enviarTelegram('🤖 Logado na Betway! Monitorando histórico 🔥');
 
     // LOOP PRINCIPAL
     setInterval(async () => {
