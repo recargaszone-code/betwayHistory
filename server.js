@@ -1,6 +1,6 @@
 // ========================================================
-// Aviator Betway - FINAL COM DELAY HUMANO + SELETORES ATUALIZADOS
-// Evita tela branca pós-preenchimento rápido
+// Aviator Betway - ATUALIZADO COM SELETORES GENÉRICOS + FALLBACK
+// Evita falha em waitForSelector
 // ========================================================
 
 const puppeteer = require('puppeteer-extra');
@@ -47,14 +47,14 @@ async function enviarScreenshot(caption) {
 }
 
 async function simulateHumanBehavior() {
-  console.log('[HUMAN] Simulando comportamento...');
+  console.log('[HUMAN] Simulando...');
   await page.mouse.move(100 + Math.random() * 800, 100 + Math.random() * 600, { steps: 15 });
   await page.evaluate(() => window.scrollBy(0, 200 + Math.random() * 300));
   await new Promise(r => setTimeout(r, 1500 + Math.random() * 2500));
   await page.mouse.move(400 + Math.random() * 400, 400 + Math.random() * 300, { steps: 10 });
   await page.keyboard.press('ArrowDown');
   await new Promise(r => setTimeout(r, 1000 + Math.random() * 2000));
-  console.log('[HUMAN] Simulação concluída');
+  console.log('[HUMAN] Feito');
 }
 
 async function typeHuman(selector, text, delay = 80) {
@@ -65,7 +65,7 @@ async function typeHuman(selector, text, delay = 80) {
 // INÍCIO DO BOT
 async function iniciarBot() {
   try {
-    console.log('[BOT] Iniciando Betway Aviator...');
+    console.log('[BOT] Iniciando Betway...');
 
     browser = await puppeteer.launch({
       headless: 'new',
@@ -89,34 +89,44 @@ async function iniciarBot() {
     await page.goto(URL_AVIATOR, { waitUntil: 'domcontentloaded', timeout: 300000 });
     await enviarScreenshot('📸 Página inicial carregada');
 
-    // SIMULAÇÃO HUMANA ANTES DO LOGIN
     await simulateHumanBehavior();
     await enviarScreenshot('📸 Após simulação humana');
 
-    // LOGIN COM DELAY REALISTA
-    console.log('[LOGIN] Iniciando login humano-like...');
+    // LOGIN COM SELETORES GENÉRICOS + FALLBACK
+    console.log('[LOGIN] Iniciando com seletores genéricos...');
     let tentativas = 0;
     while (tentativas < 3) {
       try {
-        await page.waitForSelector('#login-mobile', { timeout: 120000, visible: true });
-        await typeHuman('#login-mobile', TELEFONE, 100); // digitação lenta
-        await new Promise(r => setTimeout(r, 2500 + Math.random() * 2000)); // pausa 2.5-4.5s
-        await enviarScreenshot('📸 Telefone preenchido (#login-mobile)');
+        // Telefone: prioriza #login-mobile, fallback placeholder ou type="tel"
+        let phoneSelector = '#login-mobile';
+        if (!(await page.$('#login-mobile'))) {
+          phoneSelector = 'input[type="tel"], input[placeholder*="Número de Telefone"], input[placeholder*="Númer"]';
+        }
+        await page.waitForSelector(phoneSelector, { timeout: 120000, visible: true });
+        await typeHuman(phoneSelector, TELEFONE, 100);
+        await new Promise(r => setTimeout(r, 3000 + Math.random() * 2000));
+        await enviarScreenshot('📸 Telefone preenchido');
 
-        await page.waitForSelector('#login-password', { timeout: 120000, visible: true });
-        await typeHuman('#login-password', SENHA, 100);
-        await new Promise(r => setTimeout(r, 2000 + Math.random() * 1500)); // pausa extra
-        await enviarScreenshot('📸 Senha preenchida (#login-password)');
+        // Senha: prioriza #login-password, fallback type="password"
+        let passSelector = '#login-password';
+        if (!(await page.$('#login-password'))) {
+          passSelector = 'input[type="password"], input[placeholder*="Palavra-Passe"], input[placeholder*="Senha"]';
+        }
+        await page.waitForSelector(passSelector, { timeout: 120000, visible: true });
+        await typeHuman(passSelector, SENHA, 100);
+        await new Promise(r => setTimeout(r, 2500 + Math.random() * 2000));
+        await enviarScreenshot('📸 Senha preenchida');
 
-        await page.waitForSelector('button[type="submit"]', { timeout: 60000, visible: true });
-        await page.click('button[type="submit"]');
+        // Botão Entrar: type="submit" ou texto "Entrar"
+        await page.waitForSelector('button[type="submit"], button:has(span:contains("Entrar"))', { timeout: 60000, visible: true });
+        await page.click('button[type="submit"], button:has(span:contains("Entrar"))');
         await enviarScreenshot('📸 Botão Entrar clicado');
 
-        // Espera o histórico aparecer (classe exata do HTML que você mandou)
+        // Espera histórico (classe do HTML que você mandou)
         await page.waitForSelector('.payouts-block .payout.ng-star-inserted', { timeout: 180000 });
         await enviarScreenshot('📸 Pós-login - Histórico visível!');
 
-        enviarTelegram('🤖 Logado na Betway com sucesso! Monitorando 🔥');
+        enviarTelegram('🤖 Logado na Betway! Monitorando 🔥');
         break;
       } catch (e) {
         tentativas++;
@@ -128,11 +138,9 @@ async function iniciarBot() {
 
     if (tentativas >= 3) throw new Error('Login falhou após 3 tentativas');
 
-    // LOOP PRINCIPAL - CAPTURA DIRETA DO HTML QUE VOCÊ MANDOU
+    // LOOP PRINCIPAL
     setInterval(async () => {
       try {
-        console.log('[LOOP] Buscando multiplicadores...');
-
         const payouts = await page.$$eval(
           '.payouts-block .payout.ng-star-inserted',
           els => els.map(el => el.innerText.trim()).filter(t => t && t.endsWith('x'))
@@ -141,34 +149,24 @@ async function iniciarBot() {
         let atualizou = false;
 
         payouts.forEach(texto => {
-          const valorStr = texto.replace('x', '').trim().replace(',', '.');
-          const valor = parseFloat(valorStr);
+          const valor = parseFloat(texto.replace('x', '').replace(',', '.'));
           if (isNaN(valor)) return;
 
           const key = valor.toFixed(2);
           if (!historicoAntigo.has(key)) {
             historicoAntigo.add(key);
-            multiplicadores.push({ timestamp: new Date().toISOString().slice(0,19), valor });
-
             historicoAtual.unshift(valor.toFixed(2));
             if (historicoAtual.length > MAX_HISTORICO) historicoAtual.pop();
-
             atualizou = true;
-            console.log(`[NOVO] ${valor.toFixed(2)}x encontrado`);
           }
         });
 
         if (atualizou) {
-          fs.writeFileSync('historico.json', JSON.stringify(multiplicadores, null, 2));
-          console.log(`[ARRAY] Atualizado: ${historicoAtual.length} itens`);
-          enviarTelegram(`Novos valores! Últimos 5: ${historicoAtual.slice(0,5).join(', ')}`);
+          console.log(`[ARRAY] Atualizado: ${historicoAtual.length}`);
+          enviarTelegram(`Novos multiplicadores! Últimos: ${historicoAtual.slice(0,5).join(', ')}`);
         }
 
-        if (Math.random() < 0.15) await enviarScreenshot('📸 Debug loop periódico');
-
-      } catch (err) {
-        console.error('[LOOP ERRO]', err.message);
-      }
+      } catch (err) {}
     }, 8000);
 
   } catch (err) {
@@ -185,12 +183,11 @@ app.get('/historico', (req, res) => res.json({ historicoAtual }));
 app.get('/', (req, res) => res.send(`<h1>Betway Aviator Monitor</h1><p>Histórico atual: ${JSON.stringify(historicoAtual)}</p>`));
 
 app.listen(port, () => {
-  console.log(`🚀 Servidor rodando na porta ${port}`);
+  console.log(`🚀 Rodando porta ${port}`);
   setTimeout(() => iniciarBot().catch(console.error), 10000);
 });
 
 process.on('SIGTERM', async () => {
-  console.log('🛑 Fechando...');
   if (browser) await browser.close();
   process.exit(0);
 });
