@@ -1,6 +1,6 @@
 // ========================================================
-// Aviator Betway - FINAL COM DOIS FORMULÁRIOS + DELAY 10S + CLIQUE MODAL SUBMIT
-// Preenche header → clica → espera modal → preenche modal → clica submit do modal
+// Aviator Betway - FINAL COM DELAY 20S APÓS CLIQUE NO MODAL + TIMEOUTS ALTOS
+// Resolve o erro após preencher senha (loading lento do jogo)
 // ========================================================
 
 const puppeteer = require('puppeteer-extra');
@@ -46,8 +46,8 @@ async function enviarScreenshot(caption) {
   } catch (e) {}
 }
 
-async function delay(segundos = 10) {
-  console.log(`[DELAY] Esperando ${segundos}s...`);
+async function delay(segundos) {
+  console.log(`[DELAY] Aguardando ${segundos}s...`);
   await new Promise(r => setTimeout(r, segundos * 1000));
 }
 
@@ -111,21 +111,18 @@ async function iniciarBot() {
     // CLIQUE NO BOTÃO SUBMIT DO MODAL
     console.log('[LOGIN MODAL] Clicando Entrar do modal...');
     await page.waitForSelector('button[type="submit"]', { timeout: 60000, visible: true });
-    await page.evaluate(() => {
-      const btn = document.querySelector('button[type="submit"]');
-      if (btn) btn.click();
-    });
-    await enviarScreenshot('📸 Botão modal Entrar clicado (submit)');
-    await delay(10);
+    await page.click('button[type="submit"]');
+    await enviarScreenshot('📸 Botão modal Entrar clicado');
+    await delay(20); // <--- DELAY EXTRA DE 20 SEGUNDOS APÓS CLIQUE NO MODAL (pra loading do jogo)
 
-    // Espera jogo/histórico
-    console.log('[FINAL] Esperando histórico...');
-    await page.waitForSelector('.payouts-block .payout.ng-star-inserted', { timeout: 180000 });
+    // Espera histórico aparecer
+    console.log('[FINAL] Esperando histórico carregar...');
+    await page.waitForSelector('.payouts-block .payout.ng-star-inserted', { timeout: 60000 }); // timeout maior pra cobrir loading
     await enviarScreenshot('📸 Pós-login - Histórico visível!');
 
-    enviarTelegram('🤖 Logado na Betway! Monitorando 🔥');
+    enviarTelegram('🤖 Logado na Betway! Monitorando histórico 🔥');
 
-    // LOOP
+    // LOOP PRINCIPAL
     setInterval(async () => {
       try {
         const payouts = await page.$$eval(
@@ -153,7 +150,9 @@ async function iniciarBot() {
           enviarTelegram(`Novos multiplicadores! Últimos: ${historicoAtual.slice(0,5).join(', ')}`);
         }
 
-      } catch (err) {}
+      } catch (err) {
+        console.error('[LOOP ERRO]', err.message);
+      }
     }, 8000);
 
   } catch (err) {
