@@ -1,6 +1,6 @@
 // ========================================================
-// Aviator Betway - ATUALIZADO COM SELETORES GENÉRICOS + FALLBACK
-// Evita falha em waitForSelector
+// Aviator Betway - ATUALIZADO COM 10 SEGUNDOS DE ESPERA APÓS CARREGAMENTO
+// Preenche #header-username e #header-password + clique #login-btn
 // ========================================================
 
 const puppeteer = require('puppeteer-extra');
@@ -46,26 +46,10 @@ async function enviarScreenshot(caption) {
   } catch (e) {}
 }
 
-async function simulateHumanBehavior() {
-  console.log('[HUMAN] Simulando...');
-  await page.mouse.move(100 + Math.random() * 800, 100 + Math.random() * 600, { steps: 15 });
-  await page.evaluate(() => window.scrollBy(0, 200 + Math.random() * 300));
-  await new Promise(r => setTimeout(r, 1500 + Math.random() * 2500));
-  await page.mouse.move(400 + Math.random() * 400, 400 + Math.random() * 300, { steps: 10 });
-  await page.keyboard.press('ArrowDown');
-  await new Promise(r => setTimeout(r, 1000 + Math.random() * 2000));
-  console.log('[HUMAN] Feito');
-}
-
-async function typeHuman(selector, text, delay = 80) {
-  await page.focus(selector);
-  await page.keyboard.type(text, { delay });
-}
-
 // INÍCIO DO BOT
 async function iniciarBot() {
   try {
-    console.log('[BOT] Iniciando Betway...');
+    console.log('[BOT] Iniciando Betway Aviator...');
 
     browser = await puppeteer.launch({
       headless: 'new',
@@ -89,54 +73,34 @@ async function iniciarBot() {
     await page.goto(URL_AVIATOR, { waitUntil: 'domcontentloaded', timeout: 300000 });
     await enviarScreenshot('📸 Página inicial carregada');
 
-    await simulateHumanBehavior();
-    await enviarScreenshot('📸 Após simulação humana');
+    console.log('[BOT] Aguardando 10 segundos extras para estabilizar...');
+    await new Promise(r => setTimeout(r, 10000));
+    await enviarScreenshot('📸 Após 10 segundos de espera');
 
-    // LOGIN COM SELETORES GENÉRICOS + FALLBACK
-    console.log('[LOGIN] Iniciando com seletores genéricos...');
-    let tentativas = 0;
-    while (tentativas < 3) {
-      try {
-        // Telefone: prioriza #login-mobile, fallback placeholder ou type="tel"
-        let phoneSelector = '#login-mobile';
-        if (!(await page.$('#login-mobile'))) {
-          phoneSelector = 'input[type="tel"], input[placeholder*="Número de Telefone"], input[placeholder*="Númer"]';
-        }
-        await page.waitForSelector(phoneSelector, { timeout: 120000, visible: true });
-        await typeHuman(phoneSelector, TELEFONE, 100);
-        await new Promise(r => setTimeout(r, 3000 + Math.random() * 2000));
-        await enviarScreenshot('📸 Telefone preenchido');
+    // LOGIN
+    console.log('[LOGIN] Preenchendo formulário...');
 
-        // Senha: prioriza #login-password, fallback type="password"
-        let passSelector = '#login-password';
-        if (!(await page.$('#login-password'))) {
-          passSelector = 'input[type="password"], input[placeholder*="Palavra-Passe"], input[placeholder*="Senha"]';
-        }
-        await page.waitForSelector(passSelector, { timeout: 120000, visible: true });
-        await typeHuman(passSelector, SENHA, 100);
-        await new Promise(r => setTimeout(r, 2500 + Math.random() * 2000));
-        await enviarScreenshot('📸 Senha preenchida');
+    // Telefone: #header-username
+    await page.waitForSelector('#header-username', { timeout: 120000, visible: true });
+    await page.type('#header-username', TELEFONE);
+    await enviarScreenshot('📸 Telefone preenchido (#header-username)');
 
-        // Botão Entrar: type="submit" ou texto "Entrar"
-        await page.waitForSelector('button[type="submit"], button:has(span:contains("Entrar"))', { timeout: 60000, visible: true });
-        await page.click('button[type="submit"], button:has(span:contains("Entrar"))');
-        await enviarScreenshot('📸 Botão Entrar clicado');
+    // Senha: #header-password
+    await page.waitForSelector('#header-password', { timeout: 120000, visible: true });
+    await page.type('#header-password', SENHA);
+    await enviarScreenshot('📸 Senha preenchida (#header-password)');
 
-        // Espera histórico (classe do HTML que você mandou)
-        await page.waitForSelector('.payouts-block .payout.ng-star-inserted', { timeout: 180000 });
-        await enviarScreenshot('📸 Pós-login - Histórico visível!');
+    // Botão Entrar: #login-btn
+    await page.waitForSelector('#login-btn', { timeout: 60000, visible: true });
+    await page.click('#login-btn');
+    await enviarScreenshot('📸 Botão Entrar clicado (#login-btn)');
 
-        enviarTelegram('🤖 Logado na Betway! Monitorando 🔥');
-        break;
-      } catch (e) {
-        tentativas++;
-        console.error(`[LOGIN] Falha tentativa ${tentativas}:`, e.message);
-        await enviarScreenshot(`❌ Falha tentativa ${tentativas}`);
-        await new Promise(r => setTimeout(r, 15000));
-      }
-    }
+    // Espera histórico aparecer
+    console.log('[LOGIN] Esperando histórico carregar...');
+    await page.waitForSelector('.payouts-block .payout.ng-star-inserted', { timeout: 180000 });
+    await enviarScreenshot('📸 Pós-login - Histórico visível!');
 
-    if (tentativas >= 3) throw new Error('Login falhou após 3 tentativas');
+    enviarTelegram('🤖 Logado na Betway com sucesso! Monitorando 🔥');
 
     // LOOP PRINCIPAL
     setInterval(async () => {
@@ -166,7 +130,9 @@ async function iniciarBot() {
           enviarTelegram(`Novos multiplicadores! Últimos: ${historicoAtual.slice(0,5).join(', ')}`);
         }
 
-      } catch (err) {}
+      } catch (err) {
+        console.error('[LOOP ERRO]', err.message);
+      }
     }, 8000);
 
   } catch (err) {
