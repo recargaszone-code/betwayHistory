@@ -1,7 +1,7 @@
 // ========================================================
 // Aviator Monitor Bot - PremierBet 24/7 Render Ready
 // Captura SÓ histórico real da .payouts-block
-// Login automático + Telegram + Flags anti-crash no Docker
+// Login automático + Telegram + Google Chrome (fix Render)
 // ========================================================
 
 const puppeteer = require('puppeteer-extra');
@@ -16,7 +16,7 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 // ────────────────────────────────────────────────
-// CONFIGURAÇÕES (edita só aqui se precisar)
+// CONFIGURAÇÕES
 // ────────────────────────────────────────────────
 const TELEGRAM_TOKEN = '8583470384:AAF0poQRbfGkmGy7cA604C4b_-MhYj-V7XM';
 const CHAT_ID = '7427648935';
@@ -65,10 +65,13 @@ async function iniciarBot() {
   try {
     console.log('[BOT] Iniciando Aviator Monitor com Stealth...');
 
-browser = await puppeteer.launch({
-  headless: 'new',
-  executablePath: '/usr/bin/chromium',   // ← pronto
-  args: [
+    // Usa o path do ENV do Dockerfile (google-chrome)
+    const chromePath = process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/google-chrome';
+
+    browser = await puppeteer.launch({
+      headless: 'new',
+      executablePath: chromePath,
+      args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
@@ -96,6 +99,8 @@ browser = await puppeteer.launch({
       pipe: true
     });
 
+    console.log(`[BOT] Chrome carregado em: ${chromePath}`);
+
     page = await browser.newPage();
 
     console.log(`[BOT] Abrindo: ${URL_AVIATOR}`);
@@ -119,7 +124,6 @@ browser = await puppeteer.launch({
     await page.waitForSelector('iframe', { timeout: 90000 });
     console.log('[LOGIN] Jogo carregando...');
 
-    // Espera estabilizar pós-login
     await new Promise(resolve => setTimeout(resolve, 10000));
 
     let frame = await getIframeFrame();
@@ -127,7 +131,7 @@ browser = await puppeteer.launch({
 
     enviarTelegram('🤖 Bot logado na **PremierBet** e monitorando histórico REAL do Aviator! 🔥');
 
-    // ── LOOP PRINCIPAL DE MONITORAMENTO ──
+    // ── LOOP PRINCIPAL ──
     setInterval(async () => {
       try {
         frame = await getIframeFrame();
@@ -153,23 +157,16 @@ browser = await puppeteer.launch({
               let msg = `🕒 ${timestamp} | <b>${valor.toFixed(2)}x</b>`;
               if (valor >= 50) {
                 msg = `🚀 FOGUETÃO INSANO! ${valor.toFixed(2)}x 🚀\n${msg}`;
-                console.log(`[${timestamp}] FOGUETÃO: ${valor.toFixed(2)}x`);
               } else if (valor >= 10) {
                 msg = `🔥 BOA! ${valor.toFixed(2)}x 🔥\n${msg}`;
-                console.log(`[${timestamp}] BOA: ${valor.toFixed(2)}x`);
-              } else {
-                console.log(`[${timestamp}] Novo histórico: ${valor.toFixed(2)}x`);
               }
-
               enviarTelegram(msg);
             }
           }
         });
 
         if (novos.length > 0) {
-          console.log(`Novos do histórico: ${novos.map(v => v.toFixed(2)).join(', ')}`);
           fs.writeFileSync('historico.json', JSON.stringify(multiplicadores, null, 2));
-          console.log('historico.json atualizado');
         }
 
       } catch (err) {
@@ -183,7 +180,7 @@ browser = await puppeteer.launch({
   }
 }
 
-// ── SERVER SIMPLES PRA MANTER VIVO NO RENDER ──
+// ── SERVER ──
 app.get('/', (req, res) => {
   res.send(`
     <h1>Aviator Monitor Bot - PremierBet</h1>
@@ -203,4 +200,3 @@ process.on('SIGTERM', async () => {
   if (browser) await browser.close();
   process.exit(0);
 });
-
