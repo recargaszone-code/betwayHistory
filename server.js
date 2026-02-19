@@ -1,7 +1,5 @@
 // ========================================================
-// Aviator Monitor Bot - PremierBet 24/7 Render Ready
-// Captura SÓ histórico real da .payouts-block
-// Login automático + Telegram + Google Chrome (fix Render)
+// Aviator Monitor Bot - PremierBet 24/7 Render Ready (Chrome fix 2026)
 // ========================================================
 
 const puppeteer = require('puppeteer-extra');
@@ -11,19 +9,18 @@ puppeteer.use(StealthPlugin());
 const express = require('express');
 const fs = require('fs');
 const TelegramBot = require('node-telegram-bot-api');
+const { execSync } = require('child_process');
 
 const app = express();
 const port = process.env.PORT || 3000;
 
 // ────────────────────────────────────────────────
-// CONFIGURAÇÕES
+// CONFIGS
 // ────────────────────────────────────────────────
 const TELEGRAM_TOKEN = '8583470384:AAF0poQRbfGkmGy7cA604C4b_-MhYj-V7XM';
 const CHAT_ID = '7427648935';
-
 const TELEFONE = '857789345';
 const SENHA = 'max123ZICO';
-
 const URL_AVIATOR = 'https://www.premierbet.co.mz/virtuals/game/aviator-291195';
 
 const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: false });
@@ -34,15 +31,11 @@ let historicoAntigo = new Set();
 let multiplicadores = [];
 
 // ────────────────────────────────────────────────
-// FUNÇÕES AUXILIARES
+// FUNÇÕES
 // ────────────────────────────────────────────────
 async function enviarTelegram(mensagem) {
-  try {
-    await bot.sendMessage(CHAT_ID, mensagem, { parse_mode: 'HTML' });
-    console.log('[TELEGRAM] Enviado:', mensagem);
-  } catch (err) {
-    console.error('[TELEGRAM ERRO]', err.message);
-  }
+  try { await bot.sendMessage(CHAT_ID, mensagem, { parse_mode: 'HTML' }); console.log('[TELEGRAM] Enviado'); }
+  catch (err) { console.error('[TELEGRAM ERRO]', err.message); }
 }
 
 async function getIframeFrame() {
@@ -50,7 +43,6 @@ async function getIframeFrame() {
     const iframeElement = await page.waitForSelector('iframe', { timeout: 15000 });
     const frame = await iframeElement.contentFrame();
     if (!frame) throw new Error('ContentFrame não acessível');
-    console.log('[IFRAME] Re-pego com sucesso!');
     return frame;
   } catch (err) {
     console.error('[IFRAME ERRO]', err.message);
@@ -59,119 +51,84 @@ async function getIframeFrame() {
 }
 
 // ────────────────────────────────────────────────
-// INÍCIO DO BOT
+// BOT
 // ────────────────────────────────────────────────
 async function iniciarBot() {
   try {
     console.log('[BOT] Iniciando Aviator Monitor com Stealth...');
 
-    // Usa o path do ENV do Dockerfile (google-chrome)
     const chromePath = process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/google-chrome';
+    console.log(`[DEBUG] Tentando Chrome em: ${chromePath}`);
+
+    // DEBUG FORÇADO - mostra se o Chrome realmente existe
+    if (fs.existsSync(chromePath)) {
+      console.log(`[DEBUG] ✅ Chrome encontrado! Versão: ${execSync(`${chromePath} --version`).toString().trim()}`);
+    } else {
+      console.error(`[DEBUG] ❌ Chrome NÃO encontrado em ${chromePath}`);
+      console.log('[DEBUG] O que tem em /usr/bin/*chrome*:');
+      try { console.log(execSync('ls /usr/bin/*chrome* 2>/dev/null || echo "nenhum"').toString()); } catch(e){}
+    }
 
     browser = await puppeteer.launch({
       headless: 'new',
       executablePath: chromePath,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-        '--disable-software-rasterizer',
-        '--disable-extensions',
-        '--disable-infobars',
-        '--disable-features=site-per-process',
-        '--disable-background-timer-throttling',
-        '--disable-backgrounding-occluded-windows',
-        '--disable-renderer-backgrounding',
-        '--window-size=1280,800',
-        '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
-        '--disable-web-security',
-        '--no-zygote',
-        '--disable-notifications',
-        '--disable-push-api',
-        '--disable-features=PushMessaging',
-        '--disable-component-update',
-        '--no-first-run',
-        '--disable-sync'
-      ],
-      ignoreHTTPSErrors: true,
-      dumpio: true,
-      pipe: true
+      args: ['--no-sandbox','--disable-setuid-sandbox','--disable-dev-shm-usage','--disable-gpu','--window-size=1280,800','--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'],
+      ignoreHTTPSErrors: true
     });
 
-    console.log(`[BOT] Chrome carregado em: ${chromePath}`);
-
     page = await browser.newPage();
-
     console.log(`[BOT] Abrindo: ${URL_AVIATOR}`);
     await page.goto(URL_AVIATOR, { waitUntil: 'networkidle2', timeout: 90000 });
 
-    // ── LOGIN AUTOMÁTICO (PremierBet) ──
-    console.log('[LOGIN] Iniciando login automático...');
-
+    // LOGIN PREMIERBET
+    console.log('[LOGIN] Iniciando...');
     await page.waitForSelector('input[name="login"]', { timeout: 40000, visible: true });
     await page.type('input[name="login"]', TELEFONE);
-    console.log('[LOGIN] Telefone digitado');
-
     await page.waitForSelector('input[name="password"]', { timeout: 20000, visible: true });
     await page.type('input[name="password"]', SENHA);
-    console.log('[LOGIN] Senha digitada');
-
     await page.waitForSelector('button.form-button.form-button--primary', { timeout: 15000, visible: true });
     await page.click('button.form-button.form-button--primary');
-    console.log('[LOGIN] Botão de login clicado');
 
     await page.waitForSelector('iframe', { timeout: 90000 });
-    console.log('[LOGIN] Jogo carregando...');
-
-    await new Promise(resolve => setTimeout(resolve, 10000));
+    await new Promise(r => setTimeout(r, 10000));
 
     let frame = await getIframeFrame();
-    if (!frame) throw new Error('Não conseguiu pegar iframe após login');
+    if (!frame) throw new Error('Iframe não carregou');
 
     enviarTelegram('🤖 Bot logado na **PremierBet** e monitorando histórico REAL do Aviator! 🔥');
 
-    // ── LOOP PRINCIPAL ──
+    // LOOP
     setInterval(async () => {
       try {
         frame = await getIframeFrame();
         if (!frame) return;
 
-        const payouts = await frame.$$eval(
-          '.payouts-block .payout.ng-star-inserted',
-          els => els.map(el => el.innerText.trim()).filter(t => t && t.endsWith('x'))
+        const payouts = await frame.$$eval('.payouts-block .payout.ng-star-inserted', els => 
+          els.map(el => el.innerText.trim()).filter(t => t && t.endsWith('x'))
         );
 
         const novos = [];
         payouts.forEach(texto => {
-          const valorStr = texto.replace('x', '').trim().replace(',', '.');
-          const valor = parseFloat(valorStr);
+          const valor = parseFloat(texto.replace('x','').trim().replace(',','.'));
           if (!isNaN(valor)) {
             const key = valor.toFixed(2);
             if (!historicoAntigo.has(key)) {
               historicoAntigo.add(key);
-              const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
-              multiplicadores.push({ timestamp, valor });
+              const ts = new Date().toISOString().replace('T',' ').substring(0,19);
+              multiplicadores.push({ timestamp: ts, valor });
               novos.push(valor);
 
-              let msg = `🕒 ${timestamp} | <b>${valor.toFixed(2)}x</b>`;
-              if (valor >= 50) {
-                msg = `🚀 FOGUETÃO INSANO! ${valor.toFixed(2)}x 🚀\n${msg}`;
-              } else if (valor >= 10) {
-                msg = `🔥 BOA! ${valor.toFixed(2)}x 🔥\n${msg}`;
-              }
+              let msg = `🕒 ${ts} | <b>${valor.toFixed(2)}x</b>`;
+              if (valor >= 50) msg = `🚀 FOGUETÃO INSANO! ${valor.toFixed(2)}x 🚀\n${msg}`;
+              else if (valor >= 10) msg = `🔥 BOA! ${valor.toFixed(2)}x 🔥\n${msg}`;
               enviarTelegram(msg);
             }
           }
         });
 
-        if (novos.length > 0) {
-          fs.writeFileSync('historico.json', JSON.stringify(multiplicadores, null, 2));
-        }
+        if (novos.length > 0) fs.writeFileSync('historico.json', JSON.stringify(multiplicadores, null, 2));
 
-      } catch (err) {
-        console.error('[ERRO no loop]', err.message);
-      }
+      } catch (err) { console.error('[ERRO loop]', err.message); }
     }, 8000);
 
   } catch (err) {
@@ -180,14 +137,9 @@ async function iniciarBot() {
   }
 }
 
-// ── SERVER ──
+// SERVER
 app.get('/', (req, res) => {
-  res.send(`
-    <h1>Aviator Monitor Bot - PremierBet</h1>
-    <p>Status: Rodando</p>
-    <p>Multiplicadores capturados: ${multiplicadores.length}</p>
-    <p>Últimos 5: ${multiplicadores.slice(-5).map(m => m.valor.toFixed(2) + 'x').join(', ')}</p>
-  `);
+  res.send(`<h1>Aviator PremierBet</h1><p>Status: Rodando</p><p>Capturados: ${multiplicadores.length}</p>`);
 });
 
 app.listen(port, () => {
@@ -195,8 +147,4 @@ app.listen(port, () => {
   iniciarBot();
 });
 
-process.on('SIGTERM', async () => {
-  console.log('Fechando browser...');
-  if (browser) await browser.close();
-  process.exit(0);
-});
+process.on('SIGTERM', async () => { if (browser) await browser.close(); process.exit(0); });
